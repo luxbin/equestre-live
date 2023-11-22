@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title></title>
+<!--<script type="text/javascript" src="D:\jquery-1.12.4.min.js"></script>-->
+<script type="text/javascript">
+
+    var labels = ["OK", "NPR", "DNS", "RET", "DNF", "HC", "Disqual"];
+    //var labels = ["Classified", "Not Present", "DNS", "RET", "Elimin", "Off-course", "Disqual"];
+
+var TABLE_A = 0;
+var TABLE_C = 1;
+var TABLE_PENALTIES = 2;
+var TABLE_OPTIMUM = 10;	
+
+function testfunc(param1, param2) {
+
+    var results = [];
+
+    results.push(param1);
+    results.push(param2);
+
+    alert("hahaha");
+
+    return results; 
+}
+
+/*
+var JSON = JSON || {};
+
+// implement JSON.stringify serialization
+JSON.stringify = JSON.stringify || function (obj) {
+
+    var t = typeof (obj);
+    if (t != "object" || obj === null) {
+
+        // simple data type
+        if (t == "string") obj = '"'+obj+'"';
+        return String(obj);
+
+    }
+    else {
+
+        // recurse array or object
+        var n, v, json = [], arr = (obj && obj.constructor == Array);
+
+        for (n in obj) {
+            v = obj[n]; t = typeof(v);
+
+            if (t == "string") v = '"'+v+'"';
+            else if (t == "object" && v !== null) v = JSON.stringify(v);
+
+            json.push((arr ? "" : '"' + n + '":') + String(v));
+        }
+
+        return (arr ? "[" : "{") + String(json) + (arr ? "]" : "}");
+    }
+};
+
+// implement JSON.parse de-serialization
+JSON.parse = JSON.parse || function (str) {
+    if (str === "") str = '""';
+    eval("var p=" + str + ";");
+    return p;
+ };
+*/
+
+if (!window.JSON) {
+  window.JSON = {
+    parse: function(sJSON) { return eval('(' + sJSON + ')'); },
+    stringify: (function () {
+      var toString = Object.prototype.toString;
+      var isArray = Array.isArray || function (a) { return toString.call(a) === '[object Array]'; };
+      var escMap = {'"': '\\"', '\\': '\\\\', '\b': '\\b', '\f': '\\f', '\n': '\\n', '\r': '\\r', '\t': '\\t'};
+      var escFunc = function (m) { return escMap[m] || '\\u' + (m.charCodeAt(0) + 0x10000).toString(16).substr(1); };
+      var escRE = /[\\"\u0000-\u001F\u2028\u2029]/g;
+      return function stringify(value) {
+        if (value == null) {
+          return 'null';
+        } else if (typeof value === 'number') {
+          return isFinite(value) ? value.toString() : 'null';
+        } else if (typeof value === 'boolean') {
+          return value.toString();
+        } else if (typeof value === 'object') {
+          if (typeof value.toJSON === 'function') {
+            return stringify(value.toJSON());
+          } else if (isArray(value)) {
+            var res = '[';
+            for (var i = 0; i < value.length; i++)
+              res += (i ? ', ' : '') + stringify(value[i]);
+            return res + ']';
+          } else if (toString.call(value) === '[object Object]') {
+            var tmp = [];
+            for (var k in value) {
+            if (value.hasOwnProperty(k))
+                tmp.push(stringify(k) + ': ' + stringify(value[k]));
+            }
+             return '{' + tmp.join(', ') + '}';
+          }
+        }
+        return '"' + value.toString().replace(escRE, escFunc) + '"';
+      };
+    })()
+  };
+}
+
+/*
+if (!Array.prototype.filter)
+{
+  Array.prototype.filter = function(fun)
+  {
+    "use strict";
+
+    if (this === void 0 || this === null)
+      throw new TypeError();
+
+    var t = Object(this);
+    var len = t.length >>> 0;
+    if (typeof fun !== "function")
+      throw new TypeError();
+
+    var res = [];
+    var thisp = arguments[1];
+    for (var i = 0; i < len; i++)
+    {
+      if (i in t)
+      {
+        var val = t[i]; // in case fun mutates this
+        if (fun.call(thisp, val, i, t))
+          res.push(val);
+      }
+    }
+
+    return res;
+  };
+}
+*/
+
+(function(fn){
+    if (!fn.map) fn.map=function(f){var r=[];for(var i=0;i<this.length;i++)if(this[i]!==undefined)r[i]=f(this[i]);return r}
+    if (!fn.filter) fn.filter=function(f){var r=[];for(var i=0;i<this.length;i++)if(this[i]!==undefined&&f(this[i]))r[i]=this[i];return r}
+})(Array.prototype);
+
+
+function generateRanking(param_json) {
+
+    //var params = jQuery.parseJSON(param_json);
+
+    var params = JSON.parse(param_json);
+
+    roundScore = params.roundScore; 
+    jumpoffScore = params.jumpoffScore;
+    roundCount = params.roundCount; 
+    jumpoffCount = params.jumpoffCount;
+    round = params.round; 
+    jumpoff = params.jumpoff;
+    roundTableTypes = params.roundTableTypes; 
+    jumpoffTableTypes = params.jumpoffTableTypes;
+    allowedTimeRounds = params.allowedTimeRounds; 
+    allowedTimeJumpoffs = params.allowedTimeJumpoffs;
+    againstTimeClockRounds = params.againstTimeClockRounds; 
+    againstTimeClockJumpoffs = params.againstTimeClockJumpoffs;
+    twoPhaseIntegrated = params.twoPhaseIntegrated; 
+    twoPhaseDiffered = params.twoPhaseDiffered; 
+    discipline = params.discipline;
+    
+    if (twoPhaseIntegrated) {
+        round = 0;
+        jumpoff = 1;
+    } else if (twoPhaseDiffered) {
+        //round = 0;
+        //jumpoff = 0;
+    }
+
+    twoPhaseIntegrated = twoPhaseIntegrated || twoPhaseDiffered;
+
+    var roundDisplayCount = round !== 0 ? round : (roundCount + jumpoff);
+    if (twoPhaseDiffered) roundDisplayCount = roundCount;
+    var scoreList = roundScore.slice(0, roundCount).concat(jumpoffScore.slice(0, jumpoffCount));
+    var tableTypeList = roundTableTypes.slice(0, roundCount).concat(jumpoffTableTypes.slice(0, jumpoffCount));
+    var allowedTimesList = allowedTimeRounds.slice(0, roundCount).concat(allowedTimeJumpoffs.slice(0, jumpoffCount));
+    var againstTimeClockList = againstTimeClockRounds.slice(0, roundCount).concat(againstTimeClockJumpoffs.slice(0, jumpoffCount));
+    var columnCount = 5 + 2 * roundDisplayCount;
+    var riderCount = scoreList[0].length;
+
+    for (var i = 1; i < roundDisplayCount; i ++) {
+        if (scoreList[i].length > riderCount) {
+            riderCount = scoreList[i].length;
+        }
+    }
+
+    // format result table
+    var result = []; // = Array(riderCount + 1).fill(0).map(function() { Array(columnCount).fill('')});
+
+    
+    for (var i = 0; i < riderCount + 1; i ++) {
+        var s = [];
+        for (var j = 0; j < columnCount; j ++) {
+            s[j] = '';
+        }
+        result[i] = s;
+    }
+
+    /*
+    // format result table header
+    result[0][0] = `<span data-key="RANK"></span>`;
+    result[0][1] = `<span data-key="NUMBER"></span>`;
+    result[0][2] = `<span data-key="HORSE"></span>`;
+    result[0][3] = `<span data-key="RIDER"></span>`;
+    result[0][4] = `<span data-key="NATION"></span>`;
+    for (var i = 0; i < roundDisplayCount; i++) {
+        var roundType = i < roundCount ? 'ROUND' : 'JUMP_OFF';
+        var tableType = tableTypeList[i];
+        var pointType = tableType === TABLE_C ? 'PENALTIES' : 'POINTS';
+        var ii = i < roundCount ? `${i + 1}` : `${i + 1 - roundCount}`;
+        var fontSize = roundType === 'ROUND' ? 'font-size-small' : 'font-size-mini';
+        if (discipline == 3) {
+            var timeStr = '<div class="font-size-small">%</div>';
+            result[0][5 + i * 2] = `<div class="${fontSize} no-wrap"><span data-key="${roundType}">${roundType}</span> ${ii}</div><div data-key="${pointType}" class="font-size-small"></div>`;
+            result[0][5 + i * 2 + 1] = `<div class="${fontSize} no-wrap"><span data-key="${roundType}">${roundType}</span> ${ii}</div>${timeStr}`;
+    
+        } else {
+            var timeStr = '<div class="font-size-small" data-key="TIME">Time</div>';
+            result[0][5 + i * 2] = `<div class="${fontSize} no-wrap"><span data-key="${roundType}">${roundType}</span> ${ii}</div><div data-key="${pointType}" class="font-size-small"></div>`;
+            result[0][5 + i * 2 + 1] = `<div class="${fontSize} no-wrap"><span data-key="${roundType}">${roundType}</span> ${ii}</div>${timeStr}`;    
+        }
+    }
+    */
+
+    // calculate ranking
+    var resultNums = [];
+
+    for (var i = roundDisplayCount - 1; i >= 0; i--) {
+        var tableSlice = scoreList[i]
+            .filter(function (s) {
+                var num = s.num;
+                var found = false;
+
+                for (var k = 0; k < resultNums.length; k++) {
+                    if (resultNums[k][1] === num) {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    resultNums.push([1, num]);
+                }
+
+                return !found;
+            });//.map(function(s) { return ({...s}) });
+    }
+    /*
+    for (var i = roundDisplayCount - 1; i >= 0; i --) {
+        var tableSlice = scoreList[i]
+            .filter(function(s) {
+                var num = s.num;
+                var found = false;//resultNums.find(function(r) { return r[1] === num;});
+
+                for (var k = 0; k < resultNums.length; k ++) {
+                    if (resultNums[k][1] === num) {
+                        found = true;
+                        break;
+                    }
+                }
+
+                return !found;
+            });//.map(function(s) { return ({...s}) });
+        if (i >= 1 && i < roundCount - 1) {
+            for (var j = 0; j < tableSlice.length; j ++) {
+                tableSlice[j].point = 0;
+                tableSlice[j].pointPlus = 0;
+            }
+            for (var j = 0; j <= i; j ++) {
+                var table = scoreList[j];
+                for (var k = 0; k < tableSlice.length; k ++) {
+                    var num = tableSlice[k].num;
+                    var found = false;//table.find(function(t) { return t.num === num; });
+
+                    for (var x = 0; x < table.length; x ++) {
+                        if (table[x].num == num) {
+                            found = table[x];
+                            break;
+                        }
+                    }
+
+                    if (!found) { continue; }
+                    tableSlice[k].point += found.point;
+                }
+            }
+        }
+
+        // update by liuda
+        if (twoPhaseDiffered) {
+            for (var k = 0; k < tableSlice.length; k ++) {
+                tableSlice[k].point = 0;
+                tableSlice[k].time = 0;
+            }
+            for (var j = 0; j <= i; j ++) {
+                var table = scoreList[j];
+                for (var k = 0; k < tableSlice.length; k ++) {
+                    var num = tableSlice[k].num;
+                    var found = false;//table.find(function(t) { return t.num === num });
+                    for (var x = 0; x < table.length; x ++) {
+                        if (table[x].num == num) {
+                            found = table[x];
+                            break;
+                        }
+                    }
+                    if (!found) { continue; }
+                    tableSlice[k].point += found.point;
+
+                    if (againstTimeClockList[j])
+                        tableSlice[k].time += found.time;
+                }
+            }
+        }
+
+        var applyAgainstTimeClock = false;
+        // if (jumpoffCount === 0 || (jumpoffCount >= 1 && i >= roundCount) || roundCount === round) {
+        applyAgainstTimeClock = againstTimeClockList[i];
+        // }
+        var sortResult = discipline != 3 ? sortTable(tableSlice, tableTypeList[i], applyAgainstTimeClock, allowedTimesList[i]) : sortTableDressage(tableSlice, tableTypeList[i], applyAgainstTimeClock, allowedTimesList[i]);
+        //sortResult.forEach(function(s) {
+        //    s[0] = s[0] + resultNums.length;
+        //});
+
+        for (var k = 0; k < sortResult.length; k ++) {
+            sortResult[k][0] = sortResult[k][0] + resultNums.length;
+        }
+        resultNums = resultNums.concat(sortResult);
+    }
+    */
+
+    //alert(JSON.stringify(resultNums));
+    // write result table
+    for (var i = 0; i < riderCount; i++) {
+        var rank = resultNums[i][0];
+        var num = resultNums[i][1];
+        result[i + 1][0] = rank + 1;
+        result[i + 1][1] = num;
+        
+        var displayRank = true;
+        var scoreSummary = 0;
+        var timeSummary = 0;
+        for (var j = 0; j < roundDisplayCount; j++) {
+            var score = false;//scoreList[j].find(function(s) { return s.num === num;});
+            for (var x = 0; x < scoreList[j].length; x ++) {
+                if (scoreList[j][x].num === num) {
+                    score = scoreList[j][x];
+                    break;
+                }
+            }
+
+            var roundType = tableTypeList[j];
+            if (!score) { continue; }
+            if (roundType === TABLE_OPTIMUM) {
+                var optimumTime = allowedTimesList[j];
+                result[i + 1][5 + j * 2 + 2] = (score.point > -10 && score.point < 0) ? '' : formatFloat(Math.abs(score.time - optimumTime) / 1000, 2, 'floor');
+            }
+
+            if (score.point > -10 && score.point < 0) {
+                result[i + 1][2] = labels[Math.abs(score.point) - 1];
+            } else {
+                result[i + 1][2] = "OK";
+            }
+
+            
+            result[i + 1][5 + j * 2] = formatPoint(score.point, score.pointPlus, roundType);
+            result[i + 1][5 + j * 2 + 1] = formatTime(score.point, score.time, 0, discipline);
+            if (score.point >= 0) {
+                // displayRank = true;
+                scoreSummary += score.point;
+            }
+            if (againstTimeClockList[j])
+                timeSummary += score.time;
+        }
+        if (!displayRank) { result[i + 1][0] = ''; }
+        if (round > 1 && round <= roundCount) {
+            result[i + 1][5 + (roundDisplayCount - 1) * 2 + 2] = displayRank ? formatPoint(scoreSummary, 0, TABLE_A) : '';
+        }
+
+        // update by liuda
+        if (roundDisplayCount >= 2 && jumpoffCount == 0) { // && twoPhaseDiffered
+            result[i + 1][5 + (roundDisplayCount - 1) * 2 + 2] = formatPoint(scoreSummary, 0, TABLE_A);
+            result[i + 1][6 + (roundDisplayCount - 1) * 2 + 2] = formatTime(scoreSummary, timeSummary, 0, discipline);
+        }
+    }
+
+    /*
+    // update table header
+    if (round > 1 && round <= roundCount) {
+        result[0][5 + (roundDisplayCount - 1) * 2 + 2] = `<span data-key="POINTS"></span>`;
+    }
+    if (round === 1 && !twoPhaseDiffered) {
+        var tableType = tableTypeList[0];
+        var pointType = tableType === TABLE_C ? 'PENALTIES' : 'POINTS';
+
+        if (discipline != 3) {
+            result[0][5] = `<span data-key="${pointType}"></span>`;
+            result[0][6] = `<span data-key="TIME"></span>`;    
+        } else {
+            result[0][5] = `<span data-key="${pointType}"></span>`;
+            result[0][6] = `<span>%</span>`;    
+        }
+    }*/
+
+    // update by liuda
+    /*
+    if (roundDisplayCount >= 2 && jumpoffCount == 0) { //  && twoPhaseDiffered
+        var tableType = tableTypeList[0];
+        var pointType = tableType === TABLE_C ? 'TOTAL PENALTIES' : 'TOTAL_POINTS';
+        result[0][5 + (roundDisplayCount - 1) * 2 + 2] = `<span data-key="${pointType}"></span>`;
+        result[0][6 + (roundDisplayCount - 1) * 2 + 2] = `<span data-key="TOTAL_TIME"></span>`;
+    }*/
+    
+    var iRound = roundDisplayCount - 1;
+    var tableType = roundTableTypes[iRound];
+
+    /*
+    if (roundTableTypes[iRound] === TABLE_OPTIMUM) {
+        result[0][7] = `<span data-key="TIME_DIFF"></span>`;
+    }
+    */
+
+    // calculate game info
+    var allowedTime = againstTimeClockList[iRound] ? allowedTimesList[iRound] : 0;
+    var registeredCount = riderCount;
+    var rankingCount = 0;
+    var startedCount = 0;
+    var clearedCount = 0;
+    var expeledCount = 0;
+    var comingUpCount = 0; // TODO:
+    for (var i = 0; i < result.length; i++) {
+        if (parseInt(result[i][0]) >= 0) {
+            rankingCount ++;
+        }
+    }
+    var currentRound = scoreList[iRound];
+    for (var i = 0; i < currentRound.length; i++) {
+        if (currentRound[i].point === 0 && currentRound[i].time !== 0) {
+            clearedCount ++;
+        }
+        if (currentRound[i].point < 0) {
+            expeledCount ++;
+        }
+    }
+    startedCount = currentRound.length;
+    comingUpCount = startedCount - clearedCount - expeledCount;
+
+    /*if (discipline == 3) {
+        result = result.reverse();
+        result.unshift(result.pop());
+
+        var maxRank = -1;
+        for (var k = 1; k < result.length; k ++) {
+            if (result[k][0] > maxRank) maxRank = result[k][0]; 
+        }
+
+        for (var k = 1; k < result.length; k ++) {
+            result[k][0] = maxRank - result[k][0] + 1;
+        }
+    }*/
+
+    //alert(JSON.stringify(result));
+    return JSON.stringify(result);
+}
+
+function sortTable(scoreTableSlice, tableType, applyAgainstTimeClock, optimumTime) {
+
+    var scoreTable = scoreTableSlice.slice();
+    var cnt = scoreTable.length;
+    var result = []; //Array(cnt).fill([0, 0]);
+
+    for (k = 0; k < cnt; k ++) {
+        result[k] = [0, 0];
+    }
+
+    var rankCounter = 0;
+    var lastMax;
+    for (var i = 0; i < cnt; i++) {
+        var max = scoreTable[0];
+        var iMax = 0;
+        var n = scoreTable.length;
+        for (var j = 1; j < n; j++) {
+            var compareResult = compareFn(max, scoreTable[j], tableType, applyAgainstTimeClock, optimumTime);
+            if (compareResult === -1) {
+                max = scoreTable[j];
+                iMax = j;
+            }
+        }
+        if (i === 0) {
+            result[i] = [0, max.num];
+        } else {
+            var compareResult = compareFn(max, lastMax, tableType, applyAgainstTimeClock, optimumTime);
+            if (compareResult === -1) {
+                rankCounter = i;
+            }
+            result[i] = [rankCounter, max.num];
+        }
+        lastMax = max;
+        scoreTable.splice(iMax, 1);
+    }
+    return result;
+}
+
+function sortTableDressage(scoreTableSlice, tableType, applyAgainstTimeClock, optimumTime) {
+
+    var scoreTable = scoreTableSlice.slice();
+    var cnt = scoreTable.length;
+    var result = []; //Array(cnt).fill([0, 0]);
+
+    for (k = 0; k < cnt; k ++) {
+        result[k] = [0, 0];
+    }
+
+    var rankCounter = 0;
+    var lastMax;
+    for (var i = 0; i < cnt; i++) {
+        var max = scoreTable[0];
+        var iMax = 0;
+        var n = scoreTable.length;
+        for (var j = 1; j < n; j++) {
+            var compareResult = compareFnDressage(max, scoreTable[j], tableType, applyAgainstTimeClock, optimumTime);
+            if (compareResult === -1) {
+                max = scoreTable[j];
+                iMax = j;
+            }
+        }
+        if (i === 0) {
+            result[i] = [0, max.num];
+        } else {
+            var compareResult = compareFnDressage(max, lastMax, tableType, applyAgainstTimeClock, optimumTime);
+            if (compareResult === -1) {
+                rankCounter = i;
+            }
+            result[i] = [rankCounter, max.num];
+        }
+        lastMax = max;
+        scoreTable.splice(iMax, 1);
+    }
+    return result;
+}
+
+function compareFn(score1, score2, tableType, applyAgainstTimeClock, optimumTime) {
+    var pointA = score1.point;
+    var pointB = score2.point;
+    var timeA = score1.time;
+    var timeB = score2.time;
+    // if (timeA === 0) { return -1; }
+    // if (timeB === 0) { return 1; }
+    // if (timeA === timeB && timeA === 0) { return 0; }
+    switch (tableType) {
+        case TABLE_A: { // Table A
+            // least point and fastest time
+            if (score1.point < 0 && score2.point < 0) {
+                if (score1.point === score2.point) {
+                    return 0;
+                }
+                if (Math.abs(score1.point) > Math.abs(score2.point)) {
+                    return 1;
+                }
+                return -1;
+            }
+            if (score1.point < 0) { return -1; }
+            if (score2.point < 0) { return 1; }
+            if (pointA < pointB) { return 1; }
+            else if (pointA === pointB) {
+                if (!applyAgainstTimeClock) { return 1; }
+                if (timeA < timeB) { return 1; }
+                else if (timeA === timeB) { return 0; }
+                else { return -1; }
+            }
+            else { return -1; }
+        }
+        case TABLE_C: { // Table C
+            // fastest time
+            if (score1.point < 0 && score2.point < 0 && score1.point > -10 && score2.point > -10) {
+                // when the point represents the status of the rider
+                if (score1.point === score2.point) {
+                    return 0;
+                }
+                if (Math.abs(score1.point) > Math.abs(score2.point)) {
+                    return 1;
+                }
+                return -1;
+            }
+            if (score1.point < 0 && score1.point > -10) { return -1; }
+            if (score2.point < 0 && score2.point > -10) { return 1; }
+
+            if (timeA < timeB) { return 1; }
+            else if (timeA === timeB) { return 0; }
+            else { return -1; }
+        }
+        case TABLE_PENALTIES: { // Table Penalties
+            if (score1.point < 0 && score2.point < 0 && score1.point > -10 && score2.point > -10) {
+                // when the point represents the status of the rider
+                if (score1.point === score2.point) {
+                    return 0;
+                }
+                if (Math.abs(score1.point) > Math.abs(score2.point)) {
+                    return 1;
+                }
+                return -1;
+            }
+            if (score1.point < 0 && score1.point > -10) { return -1; }
+            if (score2.point < 0 && score2.point > -10) { return 1; }
+            if (pointA > pointB) { return 1; }
+            else if (pointA === pointB) {
+                if (!applyAgainstTimeClock) { return 1; }
+                if (timeA < timeB) { return 1; }
+                else if (timeA === timeB) { return 0; }
+                else { return -1; }
+            }
+            else { return -1; }
+        }
+        case TABLE_OPTIMUM: { // Table Optimum
+            if (score1.point < 0 && score2.point < 0) {
+                if (score1.point === score2.point) {
+                    return 0;
+                }
+                if (Math.abs(score1.point) > Math.abs(score2.point)) {
+                    return 1;
+                }
+                return -1;
+            }
+            if (score1.point < 0) { return -1; }
+            if (score2.point < 0) { return 1; }
+            if (pointA < pointB) { return 1; }
+            else if (pointA === pointB) {
+                var timeDiffA = Math.abs(timeA - optimumTime);
+                var timeDiffB = Math.abs(timeB - optimumTime);
+                if (timeDiffA < timeDiffB) { return 1; }
+                else if (timeDiffA === timeDiffB) { return 0; }
+                else { return -1; }
+            }
+            else { return -1; }
+        }
+        default: {
+            return 0;
+        }
+    }
+}
+
+function compareFnDressage(score1, score2, tableType, applyAgainstTimeClock, optimumTime) {
+
+    var timeA = score1.time; // dressage percentage
+    var timeB = score2.time;
+    var pointA = score1.point;
+    var pointB = score2.point;
+    // if (timeA === 0) { return -1; }
+    // if (timeB === 0) { return 1; }
+    // if (timeA === timeB && timeA === 0) { return 0; }
+
+    // least point and fastest time
+
+    if (score1.status > 1) { return -1};
+    if (score2.status > 1) { return 1 };
+
+    if (score1.status > 1 && score2.status > 1) { return 0 };
+
+    if (timeA > timeB) { return 1; }
+    else if (timeA === timeB) {
+        if (pointA > pointB) { return 1; }
+        else if (pointA === pointB) { return 0; }
+        else { return -1; }
+    }
+    else { return -1; }
+}
+
+function formatFloat(point, digit, round) {
+    digit = (digit > 5)?5:digit;
+    digit = (digit < 0)?0:digit;
+
+    var pos = Math.pow(10, digit);
+    if(round==='round') {
+        point = Math.round(point * pos);
+    } else if(round ==='ceil') {
+        point = Math.ceil(point * pos);
+    } else if(round==='floor') {
+        point = Math.floor(point * pos);
+    }
+    return (point / pos).toFixed(digit);
+}
+
+function formatPoint(score, pointSurpassing, roundType) {
+    
+    if (score > -10 && score < 0) {
+        //var label = labels[Math.abs(score) - 1];
+        //return label;
+        return '';
+    }
+    
+    var s1 = formatFloat(score / 1000, 2, 'floor');
+    var s2 = formatFloat(pointSurpassing / 1000, 2, 'floor');
+    if (pointSurpassing !== 0) {
+        // TODO: comment/uncomment if needed
+        return s1;// + "(" + s2 + ")";
+    }
+    if (roundType === TABLE_C) {
+        if (score !== 0) {
+            return "(" + s1 + ")";
+        } else {
+            return '';
+        }
+    }
+    return s1;
+}
+
+function formatTime(point, time, timePenalty, discipline) {
+
+    if (discipline == 3)
+        return formatFloat(time / 1000, 2, 'floor');
+
+    if (point > -10 && point < 0) {
+        return '';
+    }
+   //var s1 = formatFloat(time / 1000, 2, 'floor');
+   var s1 = "";
+
+    if (discipline == 0)
+        s1 = formatFloat(time / 1000, 2, 'floor');
+    else if (discipline == 2)
+        s1 = tickToTimeD(time);
+
+   var s2 = formatFloat(timePenalty / 1000, 2, 'floor');
+   if (timePenalty !== 0) {
+       return s1 + "(" + s2 + ")";
+   }
+   return s1;
+}
+
+function tickToTimeD(ticks, time_accuracy)
+{
+    if (ticks == undefined || ticks == "")
+        return " ";
+
+    var ts = ticks / 1000;
+
+    var mils = 0;
+    
+
+    if (time_accuracy >= 2 && time_accuracy <= 5)
+        mils = Math.floor((ticks % 1000) / Math.pow(10, 5 - time_accuracy));
+    else
+        mils = Math.floor((ticks % 1000) / 100);
+
+    //conversion based on seconds
+    var hh = Math.floor( ts / 3600);
+    var mm = Math.floor( (ts % 3600) / 60);
+    var ss = Math.floor((ts % 3600) % 60);
+
+    //prepend '0' when needed
+    hh = hh < 10 ? '0' + hh : hh;
+    mm = mm < 10 ? '0' + mm : mm;
+    ss = ss < 10 ? '0' + ss : ss;
+
+    //use it
+    //var str = hh + "h" + mm + ":" + ss;
+    var str = hh + ":" + mm + ":" + ss;
+
+    if (5 - time_accuracy != 3)
+        str += "." + mils;
+
+    str = str.replace(/^0([1-9]?:.+)/gi, "$1");
+    str = str.replace(/^00:(.+)/gi, "$1"); 
+
+    str = str.replace(/^0([1-9]?:.+)/gi, "$1");
+    str = str.replace(/^00:(.+)/gi, "$1"); 
+
+    str = str.replace(/^0([1-9]?\..+)/gi, "$1");
+    str = str.replace(/^0(0\..+)/gi, "$1");
+
+    return str;
+}
+
+
+</script>
+</head>
+<body>
+
+    <h1>This is dummy web page for executing javascript.</h1>
+
+</body>
+</html>

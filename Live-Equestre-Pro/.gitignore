@@ -1,0 +1,8 @@
+*.db
+Debug/
+Live-Equestre-Pro/Release/
+Release/
+ipch/
+*.aps
+*.suo
+*.opendb
