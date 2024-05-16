@@ -7,10 +7,10 @@
 
 CString loadConfig() {
 	CFile f;
-	if (!PathFileExists(L"config.ini")) {
+	if (!PathFileExists(L"eqconfig.ini")) {
 		return L"http://127.0.0.1:21741";
 	}
-	f.Open(L"config.ini", CFile::modeRead);
+	f.Open(L"eqconfig.ini", CFile::modeRead);
 	char pBuf[100];
 	int len = f.GetLength();
 	f.Read(pBuf, len);

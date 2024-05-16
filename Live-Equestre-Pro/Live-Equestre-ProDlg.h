@@ -114,4 +114,5 @@ public:
 	CButton m_chkUpload;
 	afx_msg void OnBnClickedBtnPdfBrowser();
 	afx_msg void OnBnClickedBtnPdfUpload();
+	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 };

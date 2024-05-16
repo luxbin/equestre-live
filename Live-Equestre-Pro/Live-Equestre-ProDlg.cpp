@@ -30,6 +30,8 @@ using Poco::AutoPtr;
 
 #include <afxdhtml.h>
 
+#include "CAboutDlg.h"
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -169,6 +171,7 @@ BEGIN_MESSAGE_MAP(CLiveEquestreProDlg, CDialog)
 	ON_BN_CLICKED(IDC_BTN_UPLOAD, &CLiveEquestreProDlg::OnBnClickedBtnUpload)
 	ON_BN_CLICKED(IDC_BTN_PDF_BROWSER, &CLiveEquestreProDlg::OnBnClickedBtnPdfBrowser)
 	ON_BN_CLICKED(IDC_BTN_PDF_UPLOAD, &CLiveEquestreProDlg::OnBnClickedBtnPdfUpload)
+	ON_WM_SYSCOMMAND()
 END_MESSAGE_MAP()
 
 
@@ -252,7 +255,11 @@ BOOL CLiveEquestreProDlg::OnInitDialog()
 	//m_HtmCtrl.Navigate(_T("D:\\test.html"));
 	m_HtmCtrl.LoadFromResource(IDR_HTML1);
 	
-
+	HMENU pSysMenu = ::GetSystemMenu(this->GetSafeHwnd(), FALSE);
+	if (pSysMenu)
+	{
+		::InsertMenu(pSysMenu, 0, MF_BYPOSITION | MF_STRING, IDM_ABOUT, L"About...");
+	}
 
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
@@ -930,4 +937,16 @@ void CLiveEquestreProDlg::OnBnClickedBtnPdfUpload()
 	SetWindowTextA(hPdfPathWnd, "");
 	//SetWindowTextA(hEventIdWnd, "");
 
+}
+
+
+void CLiveEquestreProDlg::OnSysCommand(UINT nID, LPARAM lParam)
+{
+	if (nID == IDM_ABOUT) {
+		CAboutDlg dlg;
+
+		dlg.DoModal();
+	}
+
+	CDialog::OnSysCommand(nID, lParam);
 }
